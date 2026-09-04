@@ -29,6 +29,7 @@ try:
         TARGET_COL,
         TRAIN_END_YEAR,
         TEST_START_YEAR,
+        TEST_END_YEAR,
         RISK_LEVEL_THRESHOLDS,
     )
 except ImportError:
@@ -41,6 +42,7 @@ except ImportError:
         TARGET_COL,
         TRAIN_END_YEAR,
         TEST_START_YEAR,
+        TEST_END_YEAR,
         RISK_LEVEL_THRESHOLDS,
     )
 
@@ -64,9 +66,9 @@ class FloodModelTrainer:
         df = pd.read_csv(self.data_path)
         df["YEAR"] = df["YEAR"].astype(int)
 
-        # Chronological Split
-        train_mask = df["YEAR"] <= TRAIN_END_YEAR
-        test_mask = df["YEAR"] >= TEST_START_YEAR
+        # Chronological Split bounded strictly to verified observational years (2015-2024)
+        train_mask = (df["YEAR"] >= 2015) & (df["YEAR"] <= TRAIN_END_YEAR)
+        test_mask = (df["YEAR"] >= TEST_START_YEAR) & (df["YEAR"] <= TEST_END_YEAR)
 
         train_df = df[train_mask].copy()
         test_df = df[test_mask].copy()
@@ -77,9 +79,9 @@ class FloodModelTrainer:
         X_test = test_df[self.features]
         y_test = test_df[self.target]
 
-        print("\n=== Chronological Dataset Partition ===")
+        print("\n=== Chronological Dataset Partition (Verified 2015-2024 Baseline) ===")
         print(f"Training Period:  2015 - {TRAIN_END_YEAR} | Samples: {len(X_train)} | Floods: {y_train.sum()} ({y_train.mean()*100:.2f}%)")
-        print(f"Testing Period:   {TEST_START_YEAR} - 2025 | Samples: {len(X_test)} | Floods: {y_test.sum()} ({y_test.mean()*100:.2f}%)")
+        print(f"Testing Period:   {TEST_START_YEAR} - {TEST_END_YEAR} | Samples: {len(X_test)} | Floods: {y_test.sum()} ({y_test.mean()*100:.2f}%)")
 
         return X_train, y_train, X_test, y_test, train_df, test_df
 
@@ -213,9 +215,12 @@ class FloodModelTrainer:
             },
             "confusion_matrix": best_result["confusion_matrix"],
             "feature_importances": feature_importances,
+            "feature_means": X_train.mean().to_dict(),
+            "feature_stds": X_train.std().replace(0, 1.0).to_dict(),
             "train_period": f"2015-{TRAIN_END_YEAR}",
-            "test_period": f"{TEST_START_YEAR}-2025",
+            "test_period": f"{TEST_START_YEAR}-{TEST_END_YEAR}",
             "risk_thresholds": RISK_LEVEL_THRESHOLDS,
+
         }
 
         joblib.dump(artifact, MODEL_PATH)

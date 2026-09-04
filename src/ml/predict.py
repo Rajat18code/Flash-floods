@@ -26,6 +26,8 @@ class FloodPredictor:
         self.model = self.artifact["model"]
         self.feature_names = self.artifact.get("feature_names", ML_FEATURE_COLS)
         self.feature_importances = self.artifact.get("feature_importances", {})
+        self.feature_means = self.artifact.get("feature_means", {})
+        self.feature_stds = self.artifact.get("feature_stds", {})
         self.metrics = self.artifact.get("metrics", {})
         self.model_name = self.artifact.get("model_name", "Unknown Model")
 
@@ -45,9 +47,11 @@ class FloodPredictor:
         return "SEVERE" if probability >= 0.85 else "LOW"
 
     def _prepare_input_df(self, input_data):
-        """Format and validate incoming data into an aligned DataFrame."""
+        """Format and validate incoming data into an aligned, non-null DataFrame."""
         if isinstance(input_data, dict):
-            df = pd.DataFrame([input_data])
+            # Strip out None values so defaults or imputations trigger cleanly
+            clean_dict = {k: v for k, v in input_data.items() if v is not None}
+            df = pd.DataFrame([clean_dict])
         elif isinstance(input_data, pd.Series):
             df = pd.DataFrame([input_data.to_dict()])
         elif isinstance(input_data, pd.DataFrame):
@@ -55,31 +59,39 @@ class FloodPredictor:
         else:
             raise TypeError(f"Unsupported input type: {type(input_data)}. Expected dict or DataFrame.")
 
-        # If only raw weather metrics provided, compute missing derived features
-        if "PRECTOTCORR" in df.columns:
-            prec = df["PRECTOTCORR"]
-            if "RAIN_3DAY" not in df.columns:
-                df["RAIN_3DAY"] = prec * 1.5
-            if "RAIN_7DAY" not in df.columns:
-                df["RAIN_7DAY"] = df["RAIN_3DAY"] * 1.8
-            if "RAIN_14DAY" not in df.columns:
-                df["RAIN_14DAY"] = df["RAIN_7DAY"] * 1.5
-            if "RAIN_INTENSITY" not in df.columns:
-                df["RAIN_INTENSITY"] = np.where(df["RAIN_3DAY"] > 0, prec / df["RAIN_3DAY"], 0.0)
-            if "TEMP_HUMIDITY" not in df.columns and "T2M" in df.columns and "RH2M" in df.columns:
-                df["TEMP_HUMIDITY"] = df["T2M"] * df["RH2M"]
-            if "WIND_RAIN" not in df.columns and "WS2M" in df.columns:
-                df["WIND_RAIN"] = df["WS2M"] * prec
-            if "PRECTOTCORR_LAG1" not in df.columns:
-                df["PRECTOTCORR_LAG1"] = prec * 0.5
-            if "PRECTOTCORR_LAG2" not in df.columns:
-                df["PRECTOTCORR_LAG2"] = prec * 0.3
-            if "API_7DAY" not in df.columns:
-                df["API_7DAY"] = df["RAIN_7DAY"] * 0.45
+        # Ensure numeric columns are properly coerced
+        for col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
 
-        # Check for missing features and fill with 0.0
+        # Handle precipitation and derived features
+        prec = float(df["PRECTOTCORR"].iloc[0]) if "PRECTOTCORR" in df.columns and not pd.isna(df["PRECTOTCORR"].iloc[0]) else 0.0
+
+        if "RAIN_3DAY" not in df.columns or pd.isna(df["RAIN_3DAY"].iloc[0]):
+            df["RAIN_3DAY"] = prec
+        if "RAIN_7DAY" not in df.columns or pd.isna(df["RAIN_7DAY"].iloc[0]):
+            df["RAIN_7DAY"] = df["RAIN_3DAY"]
+        if "RAIN_14DAY" not in df.columns or pd.isna(df["RAIN_14DAY"].iloc[0]):
+            df["RAIN_14DAY"] = df["RAIN_7DAY"]
+        if "RAIN_INTENSITY" not in df.columns or pd.isna(df["RAIN_INTENSITY"].iloc[0]):
+            r3 = float(df["RAIN_3DAY"].iloc[0])
+            df["RAIN_INTENSITY"] = (prec / r3) if r3 > 0 else 0.0
+        if "TEMP_HUMIDITY" not in df.columns or pd.isna(df["TEMP_HUMIDITY"].iloc[0]):
+            t = float(df["T2M"].iloc[0]) if "T2M" in df.columns and not pd.isna(df["T2M"].iloc[0]) else 15.0
+            rh = float(df["RH2M"].iloc[0]) if "RH2M" in df.columns and not pd.isna(df["RH2M"].iloc[0]) else 70.0
+            df["TEMP_HUMIDITY"] = t * rh
+        if "WIND_RAIN" not in df.columns or pd.isna(df["WIND_RAIN"].iloc[0]):
+            ws = float(df["WS2M"].iloc[0]) if "WS2M" in df.columns and not pd.isna(df["WS2M"].iloc[0]) else 2.0
+            df["WIND_RAIN"] = ws * prec
+        if "PRECTOTCORR_LAG1" not in df.columns or pd.isna(df["PRECTOTCORR_LAG1"].iloc[0]):
+            df["PRECTOTCORR_LAG1"] = 0.0
+        if "PRECTOTCORR_LAG2" not in df.columns or pd.isna(df["PRECTOTCORR_LAG2"].iloc[0]):
+            df["PRECTOTCORR_LAG2"] = 0.0
+        if "API_7DAY" not in df.columns or pd.isna(df["API_7DAY"].iloc[0]):
+            df["API_7DAY"] = float(df["RAIN_7DAY"].iloc[0]) * 0.45
+
+        # Check for any missing features from training schema and fill with 0.0
         for feat in self.feature_names:
-            if feat not in df.columns:
+            if feat not in df.columns or pd.isna(df[feat].iloc[0]):
                 df[feat] = 0.0
 
         return df[self.feature_names]
@@ -92,19 +104,26 @@ class FloodPredictor:
                 - prediction (0 or 1)
                 - probability (0.0 to 1.0)
                 - risk_level (LOW, MODERATE, HIGH, SEVERE)
-                - top_contributing_factors (list of tuples (factor, value))
+                - top_contributing_factors (list of dicts with feature, value, importance)
         """
         features_df = self._prepare_input_df(input_data)
         prob = float(self.model.predict_proba(features_df)[0, 1])
         pred = int(self.model.predict(features_df)[0])
         risk_level = self._determine_risk_level(prob)
 
-        # Identify top contributing factors using feature values & weights
+        # Statistically normalized feature attribution
         sample_vals = features_df.iloc[0].to_dict()
         contributions = []
         for feat, imp in self.feature_importances.items():
-            val = sample_vals.get(feat, 0.0)
-            score = imp * float(val)
+            raw_val = sample_vals.get(feat, 0.0)
+            val = 0.0 if raw_val is None or pd.isna(raw_val) else float(raw_val)
+            mean = float(self.feature_means.get(feat, 0.0))
+            std = float(self.feature_stds.get(feat, 1.0))
+            std = std if std > 0 else 1.0
+
+            # Elevated z-score (how many std deviations above normal)
+            z_score = max(0.0, (val - mean) / std)
+            score = imp * (1.0 + z_score)
             contributions.append((feat, val, score))
 
         contributions.sort(key=lambda x: x[2], reverse=True)
@@ -112,6 +131,7 @@ class FloodPredictor:
             {"feature": f, "value": round(v, 2), "importance": round(self.feature_importances.get(f, 0.0), 3)}
             for f, v, _ in contributions[:4]
         ]
+
 
         return {
             "prediction": pred,

@@ -14,7 +14,10 @@ from src.utils.config import (
     LABELED_DATA_PATH,
     MODEL_PATH,
     ML_FEATURE_COLS,
-    TARGET_COL,
+    DOCUMENTED_TARGET_COL,
+    RULE_BASELINE_COL,
+    PROVENANCE_COL,
+    HISTORICAL_DISASTER_DATES,
 )
 from src.data.data_loader import DataLoader
 from src.features.feature_engineering import FeatureEngineer
@@ -48,20 +51,55 @@ class TestFlashFloodPipeline(unittest.TestCase):
         self.assertIn("API_7DAY", df_feat.columns)
         self.assertIn("PRECTOTCORR_LAG1", df_feat.columns)
 
-    def test_03_labeling_logic(self):
-        """Test ground truth labeling produces valid binary labels and catches known disaster dates."""
+    def test_03_labeling_logic_and_separation(self):
+        """
+        Verify scientific integrity of the flood labeling pipeline:
+        1. DOCUMENTED_FLOOD_EVENT is binary.
+        2. Documented event dates are correctly labeled.
+        3. RULE_BASELINE_ALERT is binary.
+        4. Rule-based alerts do not automatically become documented flood events.
+        5. The two concepts remain strictly separate.
+        """
         df_feat = pd.read_csv(PROCESSED_FEATURES_PATH)
         labeler = FloodDatasetLabeler(df_feat)
         df_labeled = labeler.apply_labels()
 
-        self.assertIn(TARGET_COL, df_labeled.columns)
-        unique_labels = set(df_labeled[TARGET_COL].unique())
-        self.assertTrue(unique_labels.issubset({0, 1}))
+        # 1. DOCUMENTED_FLOOD_EVENT is binary
+        self.assertIn(DOCUMENTED_TARGET_COL, df_labeled.columns)
+        unique_doc = set(df_labeled[DOCUMENTED_TARGET_COL].unique())
+        self.assertTrue(unique_doc.issubset({0, 1}))
 
-        # Peak 2023 disaster date must be labeled as flood (1)
-        july_10_mask = (df_labeled["YEAR"] == 2023) & (df_labeled["MO"] == 7) & (df_labeled["DY"] == 10)
-        self.assertTrue(july_10_mask.any())
-        self.assertEqual(df_labeled.loc[july_10_mask, TARGET_COL].values[0], 1)
+        # 2. Documented event dates are correctly labeled
+        df_labeled["DATE_STR"] = pd.to_datetime(df_labeled["DATE"]).dt.strftime("%Y-%m-%d")
+        for date_str in HISTORICAL_DISASTER_DATES:
+            row = df_labeled[df_labeled["DATE_STR"] == date_str]
+            self.assertFalse(row.empty, f"Disaster date {date_str} missing from dataset")
+            self.assertEqual(
+                row[DOCUMENTED_TARGET_COL].values[0], 1,
+                f"Documented disaster date {date_str} was not labeled 1 in {DOCUMENTED_TARGET_COL}"
+            )
+
+        # 3. RULE_BASELINE_ALERT is binary
+        self.assertIn(RULE_BASELINE_COL, df_labeled.columns)
+        unique_rule = set(df_labeled[RULE_BASELINE_COL].unique())
+        self.assertTrue(unique_rule.issubset({0, 1}))
+
+        # 4. Rule-based alerts do not automatically become documented flood events
+        rule_only_mask = (df_labeled[RULE_BASELINE_COL] == 1) & (df_labeled[DOCUMENTED_TARGET_COL] == 0)
+        self.assertGreater(rule_only_mask.sum(), 0, "Expected days where rule alert fired without documented disaster")
+        
+        # Verify that for all rule_only days, DOCUMENTED_FLOOD_EVENT remains 0
+        rule_only_rows = df_labeled[rule_only_mask]
+        self.assertTrue((rule_only_rows[DOCUMENTED_TARGET_COL] == 0).all())
+        self.assertTrue((rule_only_rows[PROVENANCE_COL] == "rule_baseline_only").all())
+
+        # 5. Provenance tags partition the dataset cleanly
+        valid_provenances = {"documented_and_rule", "documented_event", "rule_baseline_only", "none"}
+        self.assertTrue(set(df_labeled[PROVENANCE_COL].unique()).issubset(valid_provenances))
+
+        # Ensure exact count separation
+        doc_count = (df_labeled[DOCUMENTED_TARGET_COL] == 1).sum()
+        self.assertEqual(doc_count, len(HISTORICAL_DISASTER_DATES))
 
     def test_04_model_artifact_and_prediction(self):
         """Test FloodPredictor loads saved model and produces valid predictions and risk tiers."""
