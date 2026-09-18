@@ -49,7 +49,7 @@ st.set_page_config(
 )
 # ---------------- TITLE & HEADER ----------------
 st.title("🌊 AI-Powered Flash Flood Risk Assessment & Monitoring System")
-st.caption(f"AI-Powered Flash Flood Risk Assessment for Hilly Regions | Primary Model Catchment: Shimla / Sutlej River Basin (2,200m) | Multi-Catchment Grid: 8 Himachal Valleys | System Current Date: {SYSTEM_TODAY.strftime('%B %d, %Y')}")
+st.caption(f"AI-Powered Flash Flood Risk Assessment for Hilly Regions | Primary Historical Data Point: Shimla, Himachal Pradesh (31.1°N, 77.17°E) | Multi-Location Real-Time Grid: 8 Himachal Valleys | System Current Date: {SYSTEM_TODAY.strftime('%B %d, %Y')}")
 
 
 with st.expander("📚 Authoritative Data Sources, Provenance & Scientific Boundaries", expanded=False):
@@ -57,7 +57,7 @@ with st.expander("📚 Authoritative Data Sources, Provenance & Scientific Bound
     with prov_col1:
         st.markdown("##### 🏛️ Authoritative Data Infrastructure")
         st.markdown("""
-        * **Historical Weather Reanalysis (2015–2024):** NASA POWER MERRA-2 daily meteorological reanalysis for Shimla/Sutlej Basin (31.1°N, 77.17°E).
+        * **Historical Weather Reanalysis (2015–2024):** NASA POWER MERRA-2 daily meteorological reanalysis for Primary Historical Data Point: Shimla, Himachal Pradesh (31.1°N, 77.17°E).
         * **Ground-Truth Disaster Archive (52 Events):** Verified historical flood & cloudburst dates documented by Himachal Pradesh State Disaster Management Authority (HPSDMA), NDMA Situation Reports, and IMD chronicles.
         * **Official River Monitoring Grid:** 8 Central Water Commission (CWC) river monitoring stations across the Sutlej, Beas, Ravi, and Giri river basins.
         * **Real-Time Meteorological Telemetry:** Open-Meteo Numerical Weather Prediction (NWP) models (ECMWF IFS 9km / DWD ICON 7km) blended with regional station grids.
@@ -66,9 +66,9 @@ with st.expander("📚 Authoritative Data Sources, Provenance & Scientific Bound
         st.markdown("##### ⚠️ Scientific Limitations & Evaluation Guardrails")
         st.markdown("""
         * **NWP Model Data vs. Satellite Radiometry:** Live telemetry is derived from Numerical Weather Prediction models and surface stations, not direct raw satellite radiometry.
-        * **Catchment Anchor:** Historical baseline model is calibrated to the Sutlej Basin terrain (2,200m). Multi-catchment extrapolation is monitored via dedicated CWC station nodes.
+        * **Geographical Scope & Model Provenance:** The historical ML baseline is trained on NASA POWER/MERRA-2 meteorological data from the Shimla-area grid point. Terrain and catchment variables are planned for the SIH extension. Multi-location real-time evaluation across 8 valleys is monitored via dedicated CWC station nodes.
         * **Separation of Rule Baselines:** Heuristic IMD alerts (≥64.5 mm) are tracked independently and never contaminate the ground-truth ML target.
-        * **Full Documentation:** See `DATA_PROVENANCE.md` and `DATA_LIMITATIONS.md` in the project root.
+        * **Full Documentation:** See `DATA_PROVENANCE.md` in the project root.
         """)
 
 st.divider()
@@ -652,19 +652,19 @@ else:
             else:
                 st.success(f"✅ **SIMULATED NORMAL CONDITIONS:** Flash flood risk is **{sim_res['risk_level']}** ({sim_res['probability_pct']}% probability). No simulated threat.")
 
-    # ---------------- TAB 5: GIS MAP & MULTI-CATCHMENT GRID ----------------
+    # ---------------- TAB 5: GIS MAP & MULTI-LOCATION GRID ----------------
     with tab_gis:
         st.markdown("### 🗺️ Interactive Geospatial Flash Flood Monitoring Network")
-        st.caption("Comprehensive GIS intelligence for Himachal Pradesh river basins. Integrates trained Machine Learning inference with multi-catchment topography across all 8 river basins.")
+        st.caption("Comprehensive GIS intelligence for Himachal Pradesh river basins. Provides multi-location real-time evaluation and Machine Learning inference across 8 critical river basin stations.")
 
-        st.info("🏔️ **Study Area Context:** The core historical reanalysis dataset is anchored at the **Shimla / Sutlej River Basin (31.1°N, 77.17°E, 2,200m)**. This GIS grid extends monitoring across 8 critical river basins covering the Beas, Sutlej, Ravi, and Yamuna drainage systems.")
+        st.info("🏔️ **Study Area Context:** Primary Historical Data Point: Shimla, Himachal Pradesh (31.1°N, 77.17°E) (approximate representative elevation of the Shimla Ridge: 2,200m, not a model feature). The historical ML baseline is trained on NASA POWER/MERRA-2 meteorological data from the Shimla-area grid point. Terrain and catchment variables are planned for the SIH extension. This GIS grid provides multi-location real-time evaluation across 8 critical river basins covering the Beas, Sutlej, Ravi, and Yamuna drainage systems.")
 
         gis_col1, gis_col2, gis_col3 = st.columns([2, 1, 1])
         with gis_col1:
             gis_mode = st.radio(
                 "Select Geospatial Layer:",
                 [
-                    "🌐 Multi-Catchment Active Prediction Grid (Mode Synchronized)",
+                    "🌐 Multi-Location Active Evaluation Grid (Mode Synchronized)",
                     "⛈️ Historical Deluge Stress-Test (July 2023 Catastrophe Simulation)",
                     "📍 Ground-Truth Disaster Epicenters (HPSDMA & NDMA Archive)"
                 ],
@@ -681,11 +681,11 @@ else:
         # Build Map Data based on selected layer
         map_records = []
 
-        if "Multi-Catchment Active Prediction Grid" in gis_mode or "CWC Monitoring Grid" in gis_mode:
+        if "Multi-Catchment Active Prediction Grid" in gis_mode or "Multi-Location Active Evaluation Grid" in gis_mode or "CWC Monitoring Grid" in gis_mode:
             gis_submode_col1, gis_submode_col2 = st.columns([1, 1])
             with gis_submode_col1:
                 gis_sync_mode = st.selectbox(
-                    "Select Prediction Mode for Multi-Catchment Grid:",
+                    "Select Prediction Mode for Multi-Location Grid:",
                     [
                         f"Mode 2: Real-Time Risk ({SYSTEM_TODAY.strftime('%B %d, %Y')})",
                         "Mode 3: Short-Term Forecast Risk (Next 7 Days)",
@@ -753,7 +753,7 @@ else:
                     "Marker Size": max(float(w.get("RAIN_3DAY", 10.0)), 14.0),
                     "Data Provenance": provenance_text
                 })
-            provenance_badge = f"🟢 **Layer Type:** {gis_mode_label} | Date: `{gis_target_date.isoformat()}` | Multi-Catchment CWC Grid"
+            provenance_badge = f"🟢 **Layer Type:** {gis_mode_label} | Date: `{gis_target_date.isoformat()}` | Multi-Location CWC Grid"
 
         elif "Historical Deluge" in gis_mode:
             sim_deluge_rain = {

@@ -53,8 +53,10 @@ TEST_END_YEAR = 2024
 
 # Geographic & Basin Scope Definition
 DATASET_COORDINATES = {"lat": 31.1048, "lon": 77.1734}
-DATASET_CATCHMENT = "Sutlej River Basin (Shimla Hills & Upper Catchment)"
-DATASET_ELEVATION_M = 2200
+DATASET_CATCHMENT = "Primary Historical Data Point: Shimla, Himachal Pradesh (31.1°N, 77.17°E)"
+# Note: 2,200m is an approximate representative elevation of the Shimla Ridge, not a model feature
+SHIMLA_RIDGE_ELEVATION_M = 2200
+DATASET_ELEVATION_M = 2200  # Deprecated alias: representative elevation of the Shimla Ridge (not a model feature)
 
 # Hydrological and IMD Guideline Thresholds for Mountainous Terrain
 IMD_HEAVY_RAIN_MM = 64.5                 # IMD heavy rainfall threshold

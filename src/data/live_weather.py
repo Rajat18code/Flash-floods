@@ -9,7 +9,7 @@ HIMACHAL_DISTRICTS = {
         "lon": 77.1734,
         "elevation_m": 2200,
         "basin": "Sutlej River Basin",
-        "catchment_focus": "Primary Study Area (NASA Reanalysis Anchor)",
+        "catchment_focus": "Primary Historical Data Point: Shimla, Himachal Pradesh (31.1°N, 77.17°E)",
         "cwc_station": "Suni / Kasol Gauge (Sutlej Reach)",
         "cwc_id": "CWC-HP-SAT04",
         "vulnerability": "Steep slopes, debris flows, urban slope failures (Summer Hill/Shiv Temple)"
