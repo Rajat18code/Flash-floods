@@ -98,3 +98,20 @@ RISK_LEVEL_THRESHOLDS = {
     "HIGH": (0.60, 0.85),
     "SEVERE": (0.85, 1.01),
 }
+
+# ---------------- 2026 PREDICTION MODES & FORECAST CONFIGURATION ----------------
+FORECAST_HORIZON_DAYS = 7  # Maximum supported short-term NWP forecast horizon in days
+
+MODE_HISTORICAL = "Historical Analysis"
+MODE_REALTIME = "Real-Time Risk"
+MODE_FORECAST = "Short-Term Forecast"
+MODE_UNAVAILABLE = "Prediction Unavailable"
+
+# Mandatory UI Labels & Disclaimers
+LABEL_HISTORICAL = "Historical risk estimation based on observed weather conditions."
+LABEL_REALTIME = "Risk estimate based on currently available weather observations."
+LABEL_FORECAST_DISCLAIMER = (
+    "Forecast risk is dependent on the accuracy of the underlying weather forecast "
+    "and should be interpreted as decision-support information."
+)
+MSG_BEYOND_HORIZON = "Prediction unavailable: this date is beyond the supported weather forecast horizon."
